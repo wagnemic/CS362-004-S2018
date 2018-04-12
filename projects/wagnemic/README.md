@@ -1,1 +1,1 @@
-My name is Michael Wagner, wagnemic
+This is my assignment-2 submission!

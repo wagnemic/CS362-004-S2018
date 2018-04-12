@@ -643,6 +643,135 @@ int getCost(int cardNumber)
   return -1;
 }
 
+// description: assumes the card at smithyHandPos is a smithy and resolves the effect of playing the smithy
+// input: position of smithy in hand, and pointer to the game state
+// return: 0 to indicate success, because playing a smithy can never fail
+int smithyEffect(int smithyHandPos, struct gameState *state)
+{
+    int i;
+    int currentPlayer = whoseTurn(state);
+    
+    //+3 Cards
+    for (i = 0; i <= 2; i++) { // (BUG: the conditional check should be < not <=)
+        drawCard(currentPlayer, state);
+	}
+			
+    //discard card from hand
+    discardCard(smithyHandPos, currentPlayer, state, 0); 
+    
+    return 0;
+}
+
+// description: resolve the effect of the playing an adventurer in the current game state, state
+// input: pointer to the game state
+// return: 0 to indicate success, because playing an adventurer can never fail 
+int adventurerEffect(struct gameState *state)
+{
+    int currentPlayer = whoseTurn(state);
+    int temphand[MAX_HAND];
+    int drawntreasure=0;
+    int cardDrawn;
+    int z = 0;// this is the counter for the temp hand
+    
+    while(drawntreasure<2) {
+        if (state->deckCount[currentPlayer] <1) {//if the deck is empty we need to shuffle discard and add to deck
+            shuffle(currentPlayer, state);
+        }
+        
+        drawCard(currentPlayer, state);
+        cardDrawn = state->hand[currentPlayer][state->handCount[currentPlayer]-1];//top card of hand is most recently drawn card.
+        
+        if (cardDrawn == copper || cardDrawn == silver || cardDrawn == gold)
+            drawntreasure++;
+        else {            
+            temphand[z]=cardDrawn;
+            state->handCount[currentPlayer]--; //this should just remove the top card (the most recently drawn one).
+            z++;
+        }
+    }
+    
+    while(z-1>=0) { // (BUG: there should be post-increment operator, ++, to increment state->discardCount[currentPlayer])
+        state->discard[currentPlayer][state->discardCount[currentPlayer]]=temphand[z-1]; // discard all cards in play that have been drawn
+        z=z-1;
+    }
+    
+    return 0;
+}
+
+// description: assumes the card at adventurerHandPos is a village and resolves the effect of playing the village
+// input: position of village in hand, and pointer to the game state
+// return: 0 to indicate success, because playing a village can never fail
+int villageEffect(int adventurerHandPos, struct gameState *state)
+{    
+    int currentPlayer = whoseTurn(state);
+    
+    //+1 Card
+    drawCard(currentPlayer, state);
+			
+    //+2 Actions
+    state->numActions = state->numActions + 2;
+			
+    //discard played card from hand
+    discardCard(adventurerHandPos, currentPlayer, state, 0);
+    return 0;
+}
+
+// description: assumes the card at councilRoomHandPos is a council room and resolves the effect of playing the council room
+// input: position of council room in hand, and pointer to the game state
+// return: 0 to indicate success, because playing a council room can never fail
+int councilRoomEffect(int councilRoomHandPos, struct gameState *state)
+{
+    int i;
+    int currentPlayer = whoseTurn(state);
+    
+    //+4 Cards
+    for (i = 0; i < 4; i++)	{
+        drawCard(currentPlayer, state);
+    }
+			
+    //+1 Buy
+    state->numBuys++;
+			
+    //Each other player draws a card
+    for (i = 0; i < state->numPlayers; i++)
+	{
+        if ( i != currentPlayer ) {
+            drawCard(i, state);
+        }
+    }
+			
+    //put played card in played card pile 
+    // (BUG: the final parameter should be a 0 to flag the card for discard, instead of a 1 which flags it for trashing)
+    discardCard(councilRoomHandPos, currentPlayer, state, 1);
+			
+    return 0;
+}
+
+// description: assumes the card at embargoHandPos is an embargo and resolves the effect of playing the embargo
+// input: position of embargo in hand, and pointer to the game state, and player's choice of supply to embargo
+// return: 0 to indicate success, or -1 to indicate failure (no game state change because choice of supply to embargo wasn't one of the supplies used in the game)
+int embargoEffect(int embargoHandPos, struct gameState *state, int supplyToEmbargo)
+{
+    int currentPlayer = whoseTurn(state);
+    
+    //+2 Coins
+    state->coins = state->coins + 2;
+			
+    //see if selected pile is in play
+    // (BUG: the below if-statement should be included to make sure the player's choice of supply is actually in play)
+    /*if ( state->supplyCount[supplyToEmbargo] == -1 ) {
+        return -1;
+    }*/
+			
+    //add embargo token to selected supply pile
+    state->embargoTokens[supplyToEmbargo]++;
+			
+    //trash card
+    discardCard(embargoHandPos, currentPlayer, state, 1);
+      
+    return 0;
+}
+
 int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState *state, int handPos, int *bonus)
 {
   int i;
@@ -655,9 +784,6 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
 
   int tributeRevealedCards[2] = {-1, -1};
   int temphand[MAX_HAND];// moved above the if statement
-  int drawntreasure=0;
-  int cardDrawn;
-  int z = 0;// this is the counter for the temp hand
   if (nextPlayer > (state->numPlayers - 1)){
     nextPlayer = 0;
   }
@@ -666,50 +792,13 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
   //uses switch to select card and perform actions
   switch( card ) 
     {
+    // re-factored effect of playing a adventurer into the function adventurerEffect
     case adventurer:
-      while(drawntreasure<2){
-	if (state->deckCount[currentPlayer] <1){//if the deck is empty we need to shuffle discard and add to deck
-	  shuffle(currentPlayer, state);
-	}
-	drawCard(currentPlayer, state);
-	cardDrawn = state->hand[currentPlayer][state->handCount[currentPlayer]-1];//top card of hand is most recently drawn card.
-	if (cardDrawn == copper || cardDrawn == silver || cardDrawn == gold)
-	  drawntreasure++;
-	else{
-	  temphand[z]=cardDrawn;
-	  state->handCount[currentPlayer]--; //this should just remove the top card (the most recently drawn one).
-	  z++;
-	}
-      }
-      while(z-1>=0){
-	state->discard[currentPlayer][state->discardCount[currentPlayer]++]=temphand[z-1]; // discard all cards in play that have been drawn
-	z=z-1;
-      }
-      return 0;
+      return adventurerEffect(state);
 			
+    // re-factored effect of playing a council room into the function councilRoomEffect
     case council_room:
-      //+4 Cards
-      for (i = 0; i < 4; i++)
-	{
-	  drawCard(currentPlayer, state);
-	}
-			
-      //+1 Buy
-      state->numBuys++;
-			
-      //Each other player draws a card
-      for (i = 0; i < state->numPlayers; i++)
-	{
-	  if ( i != currentPlayer )
-	    {
-	      drawCard(i, state);
-	    }
-	}
-			
-      //put played card in played card pile
-      discardCard(handPos, currentPlayer, state, 0);
-			
-      return 0;
+      return councilRoomEffect(handPos, state);
 			
     case feast:
       //gain card with cost up to 5
@@ -828,27 +917,13 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
 
       return 0;
 		
+    // re-factored effect of playing a smithy into the function smithyEffect
     case smithy:
-      //+3 Cards
-      for (i = 0; i < 3; i++)
-	{
-	  drawCard(currentPlayer, state);
-	}
-			
-      //discard card from hand
-      discardCard(handPos, currentPlayer, state, 0);
-      return 0;
+      return smithyEffect(handPos, state);
 		
+    // re-factored effect of playing a village into the function villageEffect
     case village:
-      //+1 Card
-      drawCard(currentPlayer, state);
-			
-      //+2 Actions
-      state->numActions = state->numActions + 2;
-			
-      //discard played card from hand
-      discardCard(handPos, currentPlayer, state, 0);
-      return 0;
+      return villageEffect(handPos, state);
 		
     case baron:
       state->numBuys++;//Increase buys by 1!
@@ -1137,23 +1212,9 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
 
       return 0;
 
-		
-    case embargo: 
-      //+2 Coins
-      state->coins = state->coins + 2;
-			
-      //see if selected pile is in play
-      if ( state->supplyCount[choice1] == -1 )
-	{
-	  return -1;
-	}
-			
-      //add embargo token to selected supply pile
-      state->embargoTokens[choice1]++;
-			
-      //trash card
-      discardCard(handPos, currentPlayer, state, 1);		
-      return 0;
+    // re-factored effect of playing an embargo into the function embargoEffect
+    case embargo: 		
+      return embargoEffect(handPos, state, choice1);
 		
     case outpost:
       //set outpost flag

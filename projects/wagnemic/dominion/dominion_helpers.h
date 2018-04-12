@@ -12,4 +12,11 @@ int getCost(int cardNumber);
 int cardEffect(int card, int choice1, int choice2, int choice3, 
 	       struct gameState *state, int handPos, int *bonus);
 
+// prototypes for the 5 re-factored card effects
+int smithyEffect(int smithyHandPos, struct gameState *state);
+int adventurerEffect(struct gameState *state);
+int villageEffect(int adventurerHandPos, struct gameState *state);
+int councilRoomEffect(int councilRoomHandPos, struct gameState *state);
+int embargoEffect(int embargoHandPos, struct gameState *state, int supplyToEmbargo);
+
 #endif
