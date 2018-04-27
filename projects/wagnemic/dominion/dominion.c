@@ -652,7 +652,7 @@ int smithyEffect(int smithyHandPos, struct gameState *state)
     int currentPlayer = whoseTurn(state);
     
     //+3 Cards
-    for (i = 0; i <= 2; i++) { // (BUG: the conditional check should be < not <=)
+    for (i = 0; i <= 3; i++) { // (BUG: the conditional check should be < not <=)
         drawCard(currentPlayer, state);
 	}
 			
@@ -698,10 +698,10 @@ int adventurerEffect(struct gameState *state)
     return 0;
 }
 
-// description: assumes the card at adventurerHandPos is a village and resolves the effect of playing the village
+// description: assumes the card at villageHandPos is a village and resolves the effect of playing the village
 // input: position of village in hand, and pointer to the game state
 // return: 0 to indicate success, because playing a village can never fail
-int villageEffect(int adventurerHandPos, struct gameState *state)
+int villageEffect(int villageHandPos, struct gameState *state)
 {    
     int currentPlayer = whoseTurn(state);
     
@@ -712,7 +712,7 @@ int villageEffect(int adventurerHandPos, struct gameState *state)
     state->numActions = state->numActions + 2;
 			
     //discard played card from hand
-    discardCard(adventurerHandPos, currentPlayer, state, 0);
+    discardCard(villageHandPos, currentPlayer, state, 0);
     return 0;
 }
 
@@ -770,6 +770,41 @@ int embargoEffect(int embargoHandPos, struct gameState *state, int supplyToEmbar
     discardCard(embargoHandPos, currentPlayer, state, 1);
       
     return 0;
+}
+
+// description: assumes the card at remodelHandPos is a remodel and resolves the effect of playing the remodel
+// input: position of remodel in hand, and pointer to the game state, player's choice of card in hand to trash, and player's choice of card to gain from the provided supply
+// return: 0 to indicate success, or -1 to indicate failure (no game state change, occurs when player choice is invalid, but there's a bug in this original code, see submitted pdf for details)
+int remodelEffect(int remodelHandPos, struct gameState *state, int handPosToTrash, int supplyPosToGain)
+{
+    int i;
+    int j;
+    int currentPlayer = whoseTurn(state);
+    
+    j = state->hand[currentPlayer][handPosToTrash];  //store card we will trash
+
+      if ( (getCost(state->hand[currentPlayer][handPosToTrash]) + 2) > getCost(supplyPosToGain) )
+	{
+	  return -1;
+	}
+
+      gainCard(supplyPosToGain, state, 0, currentPlayer);
+
+      //discard card from hand
+      discardCard(remodelHandPos, currentPlayer, state, 0);
+
+      //discard trashed card
+      for (i = 0; i < state->handCount[currentPlayer]; i++)
+	{
+	  if (i == j) // BUG: i should be state->hand[currentPlayer][i]
+	    {
+	      discardCard(i, currentPlayer, state, 0);			
+	      break;
+	    }
+	}
+
+
+      return 0;
 }
 
 int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState *state, int handPos, int *bonus)
@@ -892,30 +927,7 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       return 0;
 			
     case remodel:
-      j = state->hand[currentPlayer][choice1];  //store card we will trash
-
-      if ( (getCost(state->hand[currentPlayer][choice1]) + 2) > getCost(choice2) )
-	{
-	  return -1;
-	}
-
-      gainCard(choice2, state, 0, currentPlayer);
-
-      //discard card from hand
-      discardCard(handPos, currentPlayer, state, 0);
-
-      //discard trashed card
-      for (i = 0; i < state->handCount[currentPlayer]; i++)
-	{
-	  if (state->hand[currentPlayer][i] == j)
-	    {
-	      discardCard(i, currentPlayer, state, 0);			
-	      break;
-	    }
-	}
-
-
-      return 0;
+      return remodelEffect(handPos, state, choice1, choice2);
 		
     // re-factored effect of playing a smithy into the function smithyEffect
     case smithy:
